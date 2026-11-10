@@ -3,6 +3,7 @@
 使い方:
     uv run python -m app.agent "AIE2026の講座で使う「lecNN-start タグ」とは何ですか？"
     uv run python -m app.agent --trace "LoRAとQLoRAの違いは？"   # ツール呼び出しを表示
+    uv run python -m app.agent --interactive --trace "学習内容を記録して"  # 会話を続ける
     uv run python -m app.agent --mcp --trace "LoRAとは？"        # 第5回: ツールを MCP サーバーから受け取る
     uv run python -m app.agent --mcp --list-tools               # 第5回: モデルに見えるツール一覧（APIキー不要）
 
@@ -16,7 +17,7 @@ import inspect
 import json
 from pathlib import Path
 
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
 from pydantic_ai.exceptions import ModelHTTPError
 from fastmcp import Client
 from pydantic_ai.mcp import MCPToolset, StdioTransport
@@ -32,17 +33,19 @@ INSTRUCTIONS = """\
 あなたはAIエンジニアリング講座（AIE2026）の学習支援エージェントです。
 - 用語や講座に固有のことを答える前に、必ず search_glossary で用語集を確認する。
 - 回の内容を聞かれたら get_lecture_summary を使う。
+- 確認問題を求められたら make_quiz を使う。
+- 学習の記録を保存するよう頼まれたら save_learning_log を使い、利用者の承認を得てから保存する。
 - 用語集に見つからないことは、推測で断定せず「用語集にはない」と伝える。
 - 回答の最後に、関係する回（第N回）を示す。
 - 宿題の答えそのものは書かず、考え方のヒントで導く。
 """
 
 # モデルは実行時に渡す（テストではAPIを呼ばない TestModel に差し替えるため）
-agent = Agent(instructions=INSTRUCTIONS)
+agent = Agent(instructions=INSTRUCTIONS, output_type=[str, DeferredToolRequests])
 agent.tool_plain(tools.search_glossary)
 agent.tool_plain(tools.get_lecture_summary)
-
-# TODO(第3回 演習): tools.py に make_quiz を作り、ここで登録しよう
+agent.tool_plain(tools.make_quiz)
+agent.tool_plain(tools.save_learning_log, requires_approval=True)
 
 # 第5回: 使う MCP サーバーの設定ファイル。Claude Desktop や Cursor と同じ "mcpServers" 形式
 MCP_CONFIG = Path(__file__).resolve().parent / "mcp_servers.json"
@@ -97,10 +100,10 @@ def print_tools(target: Agent) -> None:
         print(f"  引数: {json.dumps(params, ensure_ascii=False)}")
 
 
-def print_trace(result) -> None:
+def print_trace(result, start_index: int = 0) -> None:
     """どのツールが、どの引数で呼ばれ、何を返したかを表示する。"""
     print("\n--- trace ---")
-    for message in result.all_messages():
+    for message in result.all_messages()[start_index:]:
         for part in message.parts:
             if isinstance(part, ToolCallPart):
                 print(f"[tool call]   {part.tool_name}({part.args})")
@@ -109,10 +112,21 @@ def print_trace(result) -> None:
     print(f"[usage] {result.usage}")
 
 
+def confirm_tool_approvals(pending: DeferredToolRequests) -> DeferredToolResults:
+    approvals = {}
+    for request in pending.approvals:
+        print(f"\n実行を要求されたツール: {request.tool_name}")
+        print(f"引数: {json.dumps(request.args, ensure_ascii=False)}")
+        answer = input("この操作を許可しますか？ [y/N]: ").strip().lower()
+        approvals[request.tool_call_id] = answer in {"y", "yes", "はい"}
+    return DeferredToolResults(approvals=approvals)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="学習支援エージェントに質問する")
     parser.add_argument("question", nargs="?")
     parser.add_argument("--trace", action="store_true", help="ツール呼び出しを表示する")
+    parser.add_argument("--interactive", action="store_true", help="会話を続け、空入力で終了する")
     parser.add_argument("--mcp", action="store_true", help="第5回: ツールを MCP サーバー（app/mcp_servers.json）から受け取る")
     parser.add_argument("--list-tools", action="store_true", help="モデルに見えるツール一覧を表示して終了する（APIキー不要）")
     args = parser.parse_args()
@@ -121,20 +135,43 @@ def main() -> None:
     if args.list_tools:
         print_tools(target)
         return
-    if not args.question:
+    if not args.question and not args.interactive:
         parser.error("質問を指定してください")
 
     print(f"[model] {MODEL}")
     if args.mcp:
         print("[tools] MCP サーバー（app/mcp_servers.json）")
     try:
-        result = target.run_sync(args.question, model=build_model())
+        model = build_model()
+        question = args.question
+        history = None
+        while True:
+            if not question:
+                question = input("質問を入力してください（終了: 空入力）: ").strip()
+                if not question:
+                    break
+
+            previous_message_count = len(history) if history else 0
+            result = target.run_sync(question, model=model, message_history=history)
+            while isinstance(result.output, DeferredToolRequests):
+                deferred_results = confirm_tool_approvals(result.output)
+                result = target.run_sync(
+                    None,
+                    model=model,
+                    message_history=result.all_messages(),
+                    deferred_tool_results=deferred_results,
+                )
+
+            print(result.output)
+            if args.trace:
+                print_trace(result, start_index=previous_message_count)
+            history = result.all_messages()
+            if not args.interactive:
+                break
+            question = ""
     except ModelHTTPError as e:
         print(api_error_message(e.status_code, str(e.body)[:200]))
         raise SystemExit(1)
-    print(result.output)
-    if args.trace:
-        print_trace(result)
 
 
 if __name__ == "__main__":
