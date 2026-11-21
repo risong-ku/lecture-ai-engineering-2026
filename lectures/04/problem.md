@@ -169,10 +169,10 @@ git push -u origin lec04
 
 ### 実装の進め方
 
-1. `uv run --with streamlit==1.66.1 streamlit run tools/annotate.py` を起動し、左の「作問（宿題・実装）」で、質問と「期待するふるまい」を 10 件作ります。正常系だけでなく、壊れそうな入力（エッジケース）を混ぜます。`data/eval/my_cases.jsonl` に保存されます
-2. `uv run python -m app.judge --generate --cases data/eval/my_cases.jsonl` で、第3回で作った自分のエージェント（`app/agent.py`）に回答を生成させます
-3. 「ラベル付け」の画面で、サイドバーの評価セットを `data/eval/my_cases.jsonl`、ラベルの保存先を `lectures/04/my_labels.jsonl` に変えてラベルを付けます
-4. `uv run python -m app.judge --cases data/eval/my_cases.jsonl --labels lectures/04/my_labels.jsonl --out lectures/04/my_judge_result.json` で採点します
+1. `uv run --with streamlit==1.66.1 streamlit run tools/annotate.py` を起動し、左の「作問（宿題・実装）」で用意済みの 10 件を確認します。正常系 2 件・エッジケース 8 件の案を `data/eval/homework_app_cases.jsonl` に置いてあります。質問や期待するふるまいを変える場合は JSONL を編集してください（画面の「追加する」は新しいケースを追加します）。個人情報のケースには実在の情報を書かず、他の受講者の学習記録などを求める質問にします
+2. `uv run python -m app.judge --generate --cases data/eval/homework_app_cases.jsonl` で、第3回で作った自分のエージェント（`app/agent.py`）に回答を生成させます
+3. 「ラベル付け」の画面で、サイドバーの評価セットを `data/eval/homework_app_cases.jsonl`、ラベルの保存先を `lectures/04/homework_app_labels.jsonl` に変えてラベルを付けます
+4. `uv run python -m app.judge --cases data/eval/homework_app_cases.jsonl --labels lectures/04/homework_app_labels.jsonl --out lectures/04/homework_app_judge_result.json` で採点します
 5. 「第N回」のようにコードで判定できる基準と、LLM に任せる基準の使い分けを `answer.md` に書きます
 
 ### 発展の進め方：ベンチマークのデータセットを 1 つ調べる

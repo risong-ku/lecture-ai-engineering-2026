@@ -48,6 +48,20 @@ def test_cases_and_rubric_are_consistent():
     assert set(labels) == {c["id"] for c in cases}
 
 
+def test_homework_app_cases_have_two_normal_and_eight_edge_cases():
+    cases = read_jsonl(judge.ROOT / "data" / "eval" / "homework_app_cases.jsonl")
+    assert len(cases) == 10
+    assert len({c["id"] for c in cases}) == 10
+    assert sum(c["category"].startswith("正常系") for c in cases) == 2
+    assert sum(c["category"].startswith("エッジケース") for c in cases) == 8
+    assert all(c["question"] and c["reference"]["expected"] for c in cases)
+    verdicts = judge_cases(
+        build_judge(build_test_model(), DEFAULT_RUBRIC.read_text(encoding="utf-8")),
+        cases,
+    )
+    assert set(verdicts) == {c["id"] for c in cases}
+
+
 def test_judge_pipeline_with_fake_model():
     cases = read_jsonl(DEFAULT_CASES)
     labels = load_labels(INSTRUCTOR_LABELS)
