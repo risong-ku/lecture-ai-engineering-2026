@@ -5,7 +5,7 @@
     uv run python -m app.judge --model test     # API を呼ばず、簡単な規則で判定する偽モデルで動かす（動作確認用）
     uv run python -m app.judge --compare lectures/04/reference/labels_instructor.jsonl
                                                 # 2 つのラベルファイルの一致率を出す（API キー不要）
-    uv run python -m app.judge --generate --cases data/eval/my_cases.jsonl
+    uv run python -m app.judge --generate --cases data/eval/homework_app_cases.jsonl
                                                 # 宿題（実装）: 回答を自分のエージェント（app.agent）で生成し直す
 
 採点の基準は data/eval/rubric.md に書いてある。基準ごとに理由を先に書かせてから、

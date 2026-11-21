@@ -8,8 +8,9 @@
 - ラベル付け：評価セット（data/eval/lec04_cases.jsonl）を 1 件ずつ表示し、5 つの基準の合格／不合格と
   「迷った」を lectures/04/labels.jsonl に保存する
 - 比べる：自分のラベルと講師のラベル（lectures/04/reference/labels_instructor.jsonl）の一致を見る
-- 作問（宿題・実装）：質問と期待するふるまいを書いて、自分の評価セット（data/eval/my_cases.jsonl）を作る。
-  回答は `uv run python -m app.judge --generate --cases data/eval/my_cases.jsonl` で自分のエージェントに生成させる
+- 作問（宿題・実装）：質問と期待するふるまいを書いて、自分の評価セット
+  （data/eval/homework_app_cases.jsonl）を作る。回答は `uv run python -m app.judge --generate
+  --cases data/eval/homework_app_cases.jsonl` で自分のエージェントに生成させる
 """
 
 import json
@@ -27,7 +28,7 @@ from app.judge import ALL_CRITERIA, check_lecture_mark, load_labels, read_jsonl,
 DEFAULT_CASES = ROOT / "data" / "eval" / "lec04_cases.jsonl"
 DEFAULT_LABELS = ROOT / "lectures" / "04" / "labels.jsonl"
 INSTRUCTOR_LABELS = ROOT / "lectures" / "04" / "reference" / "labels_instructor.jsonl"
-MY_CASES = ROOT / "data" / "eval" / "my_cases.jsonl"
+HOMEWORK_APP_CASES = ROOT / "data" / "eval" / "homework_app_cases.jsonl"
 
 CRITERION_HELP = {
     "grounding": "用語集にある事柄はエントリと矛盾しない。ない事柄は断定せず「用語集にはない」と伝えている",
@@ -159,8 +160,12 @@ def page_compare(cases_path: Path, labels_path: Path) -> None:
 # ---------------------------------------------------------------- 作問（宿題・実装）
 def page_author(cases_path: Path) -> None:
     st.subheader("自分の評価セットを作る（宿題・実装）")
-    st.caption("質問と「期待するふるまい」を書きます。回答は `uv run python -m app.judge --generate --cases "
-               f"{rel(cases_path)}` で自分のエージェントに生成させます。正常系だけでなく、壊れそうな入力（エッジケース）も入れましょう")
+    st.caption(
+        "宿題用ファイルには正常系 2 件・エッジケース 8 件の案を用意しています。"
+        "内容を変える場合は JSONL を編集してください。この画面から追加すると 11 件目以降になります。"
+        "回答は `uv run python -m app.judge --generate --cases "
+        f"{rel(cases_path)}` で自分のエージェントに生成させます。"
+    )
     existing = read_jsonl(cases_path) if cases_path.exists() else []
     glossary = tools.load_glossary()
     options = {f"{e['term']}（第{e['lecture']}回）": e["id"] for e in glossary}
@@ -194,17 +199,21 @@ def main() -> None:
         st.divider()
         cases_path = Path(st.text_input("評価セット", value=rel(DEFAULT_CASES)))
         labels_path = Path(st.text_input("ラベルの保存先", value=rel(DEFAULT_LABELS)))
-        my_cases_path = Path(st.text_input("作問の保存先", value=rel(MY_CASES)))
+        homework_app_cases_path = Path(st.text_input("作問の保存先", value=rel(HOMEWORK_APP_CASES)))
     cases_path = cases_path if cases_path.is_absolute() else ROOT / cases_path
     labels_path = labels_path if labels_path.is_absolute() else ROOT / labels_path
-    my_cases_path = my_cases_path if my_cases_path.is_absolute() else ROOT / my_cases_path
+    homework_app_cases_path = (
+        homework_app_cases_path
+        if homework_app_cases_path.is_absolute()
+        else ROOT / homework_app_cases_path
+    )
 
     if mode.startswith("ラベル付け"):
         page_label(cases_path, labels_path)
     elif mode.startswith("比べる"):
         page_compare(cases_path, labels_path)
     else:
-        page_author(my_cases_path)
+        page_author(homework_app_cases_path)
 
 
 main()
